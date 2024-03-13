@@ -5,6 +5,8 @@ from rich.console import Console
 
 console = Console()
 
+DATA_FOLDER = pathlib.Path(__file__).parent
+
 PARENT_DIR = pathlib.Path(__file__).parent
 
 CACHE_DIR = PARENT_DIR / ".cache"
