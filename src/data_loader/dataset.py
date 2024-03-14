@@ -27,7 +27,10 @@ class WildfireDataset(Dataset):
         img = np.array(data[self.post_fire_key])
         mask = np.array(data[self.mask_key])
 
-        return {"image": torch.tensor(img).permute((2, 0, 1)), "mask": torch.tensor(mask)}
+        return {
+            "image": torch.tensor(img, dtype=torch.float32).permute((2, 0, 1)),
+            "mask": torch.tensor(mask).permute((2, 0, 1)),
+        }
 
     def __len__(self):
         return len(self.idxs)

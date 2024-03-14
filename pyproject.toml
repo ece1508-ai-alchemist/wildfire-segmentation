@@ -35,7 +35,9 @@ dependencies = [
     "notebook",
     "jupyterlab",
     "torch",
+    "torchvision",
     "matplotlib",
+    "tqdm",
     "typing; python_version<'3.10'",
     "typing_extensions; python_version<'3.10'",
 
