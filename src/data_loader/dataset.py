@@ -21,10 +21,14 @@ class WildfireDataset(Dataset):
         self.pre_fire_key = "pre_fire"
         self.post_fire_key = "post_fire"
 
+        # Initialize to none for now
+        self.image_mask_transform = None
+        self.image_transform = None
+
     def __getitem__(self, idx):
         key, img_index = self.keys[idx]
         data = self._datasets[key][img_index]
-        img = np.array(data[self.post_fire_key])
+        img = np.array(data[self.post_fire_key])/10000
         mask = np.array(data[self.mask_key])
 
         if self.image_mask_transform:
@@ -35,8 +39,8 @@ class WildfireDataset(Dataset):
             img = self.image_transform(img)
 
         return {
-            "image": torch.tensor(img, dtype=torch.float32).permute((2, 0, 1)),
-            "mask": torch.tensor(mask).permute((2, 0, 1)),
+            "image": img,
+            "mask": mask,
         }
     def __set_transforms__(self, image_mask_transforms, image_transforms):
         self.image_transform = image_transforms

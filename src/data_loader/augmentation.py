@@ -42,7 +42,7 @@ class DoubleToTensor:
 
     def __call__(self, image, mask, weight=None):
         if weight is None:
-            return TF.to_tensor(image), TF.to_tensor(mask)
+            return torch.tensor(image, dtype=torch.float32).permute((2, 0, 1)), torch.tensor(mask).permute((2, 0, 1))
         weight = weight.view(1, *weight.shape)
         return TF.to_tensor(image), TF.to_tensor(mask), weight
 
@@ -88,6 +88,35 @@ class DoubleVerticalFlip:
 
     def __repr__(self):
         return self.__class__.__name__ + f'(p={self.p})'
+    
+class CustomColorJitter:
+    def __init__(self, brightness=0, contrast=0, saturation=0, hue=0):
+        self.brightness = brightness
+        self.contrast = contrast
+        self.saturation = saturation
+        self.hue = hue
+        self.transform = transforms.ColorJitter(brightness=self.brightness,contrast=self.contrast,saturation=self.saturation,hue=self.hue)
+
+    def __call__(self, img):
+        # Separate the 12 channels into 4 groups of 3 channels each
+        channels = torch.chunk(img, 4, dim=0)
+
+        augmented_img = None
+        # Apply ColorJitter to each group of 3 channels
+        for channel_group in channels:
+            # Combine the 3 channels into one image
+            #print(channel_group.shape)
+
+            # Apply ColorJitter to the image
+            augmented_channel_group_img = self.transform(channel_group)
+            
+            # Put it back into original img    
+            if augmented_img is None: 
+                augmented_img = augmented_channel_group_img
+            else:
+                augmented_img = torch.cat((augmented_img, augmented_channel_group_img), dim=0)      
+
+        return augmented_img
 
 class DoubleElasticTransform:
     """Based on implimentation on
@@ -99,7 +128,7 @@ class DoubleElasticTransform:
         self.random_state = np.random.RandomState(seed)
         self.alpha = alpha
         self.sigma = sigma
-        self.p = p
+        self.p = p 
         self.randinit = randinit
 
 
@@ -108,10 +137,12 @@ class DoubleElasticTransform:
             if self.randinit:
                 seed = random.randint(1, 100)
                 self.random_state = np.random.RandomState(seed)
-                self.alpha = random.uniform(100, 300)
-                self.sigma = random.uniform(10, 15)
-                # print(self.alpha)
-                # print(self.sigma)
+                self.alpha = random.uniform(100, 500)
+                self.sigma = random.uniform(10, 30)
+                #self.alpha = 1000
+                #self.sigma = 40
+                #print(self.alpha)
+                #print(self.sigma)
 
             dim = image.shape
             dx = self.alpha * gaussian_filter(
@@ -126,14 +157,26 @@ class DoubleElasticTransform:
                 mode="constant",
                 cval=0
             )
-            image = image.view(*dim[1:]).numpy()
-            mask = mask.view(*dim[1:]).numpy()
+
+            #print(dx, dy)
+
+            #image = image.view(*dim[1:]).numpy()
+            #mask = mask.view(*dim[1:]).numpy()
+            #x, y = np.meshgrid(np.arange(dim[1]), np.arange(dim[2]))
+            #indices = np.reshape(y+dy, (-1, 1)), np.reshape(x+dx, (-1, 1))
+            #image = map_coordinates(image, indices, order=1)
+            #mask = map_coordinates(mask, indices, order=1)
+
             x, y = np.meshgrid(np.arange(dim[1]), np.arange(dim[2]))
             indices = np.reshape(y+dy, (-1, 1)), np.reshape(x+dx, (-1, 1))
-            image = map_coordinates(image, indices, order=1)
-            mask = map_coordinates(mask, indices, order=1)
-            image, mask = image.reshape(dim), mask.reshape(dim)
-            image, mask = torch.Tensor(image), torch.Tensor(mask)
+            for i in range(len(image)):
+                # Apply transformations
+                image[i] = torch.Tensor(map_coordinates(image[i], indices, order=1).reshape(*dim[1:]))
+            for i in range(len(mask)):
+                mask[i] = torch.Tensor(map_coordinates(mask[i], indices, order=1).reshape(*dim[1:]))
+
+            #image, mask = image.reshape(dim), mask.reshape(dim)
+            #image, mask = torch.Tensor(image), torch.Tensor(mask)
             if weight is None:
                 return image, mask
             weight = weight.view(*dim[1:]).numpy()
@@ -155,3 +198,9 @@ class DoubleCompose(transforms.Compose):
             image, mask, weight = t(image, mask, weight)
         return image, mask, weight
 
+###############################################################################
+# For testing
+###############################################################################
+if __name__ == '__main__':
+    print("placeholder")
+    
