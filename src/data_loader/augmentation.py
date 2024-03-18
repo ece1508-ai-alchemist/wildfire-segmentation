@@ -1,10 +1,3 @@
-"""Model Trainer
-
-author: Masahiro Hayashi
-
-This script defines custom image transformations that simultaneously transform
-both images and segmentation masks.
-"""
 # Most of the code from From https://github.com/hayashimasa/UNet-PyTorch
 
 import torchvision.transforms.functional as TF
