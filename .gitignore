@@ -163,3 +163,8 @@ cython_debug/
 data/post_fire/*
 data/pre_post_fire/*
 data/.cache/*
+src/.vs/slnx.sqlite
+src/.vs/src/FileContentIndex/ad1e2825-526f-4292-a850-a17886b3fd9c.vsidx
+src/.vs/src/v17/.wsuo
+src/.vs/src/v17/DocumentLayout.json
+src/.vs/VSWorkspaceState.json

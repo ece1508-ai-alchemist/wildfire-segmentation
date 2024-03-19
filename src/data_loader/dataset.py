@@ -6,6 +6,10 @@ import torch
 from datasets import load_from_disk
 from torch.utils.data import Dataset
 
+from src.data_loader.augmentation import (
+    DoubleToTensor
+)
+
 
 class WildfireDataset(Dataset):
     def __init__(self, path_to_data: Union[str, Path], transforms):
@@ -21,16 +25,32 @@ class WildfireDataset(Dataset):
         self.pre_fire_key = "pre_fire"
         self.post_fire_key = "post_fire"
 
+        # Initialize
+        # by default, just convert the NP images to Tensor
+        self.image_mask_transform = DoubleToTensor()
+        self.image_transform = None
+
     def __getitem__(self, idx):
         key, img_index = self.keys[idx]
         data = self._datasets[key][img_index]
-        img = np.array(data[self.post_fire_key])
+        img = np.array(data[self.post_fire_key])/10000
         mask = np.array(data[self.mask_key])
 
+        if self.image_mask_transform:
+            img, mask = self.image_mask_transform(
+                img, mask
+            )
+        if self.image_transform:
+            img = self.image_transform(img)
+
         return {
-            "image": torch.tensor(img, dtype=torch.float32).permute((2, 0, 1)),
-            "mask": torch.tensor(mask).permute((2, 0, 1)),
+            "image": img,
+            "mask": mask,
         }
+    def __set_transforms__(self, image_mask_transforms, image_transforms):
+        self.image_transform = image_transforms
+        self.image_mask_transform = image_mask_transforms
+
 
     def __len__(self):
         return len(self.idxs)
