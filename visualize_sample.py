@@ -56,7 +56,7 @@ if __name__ == '__main__':
     loader_args = dict(batch_size=1,
                        shuffle=0)
 
-    trial_loader = get_loader(dt, is_train=1, loader_args=loader_args)
+    trial_loader = get_loader(dt.train, is_train=1, loader_args=loader_args)
     #mean, std = get_mean_std(trial_loader)
 
     for batch in trial_loader:

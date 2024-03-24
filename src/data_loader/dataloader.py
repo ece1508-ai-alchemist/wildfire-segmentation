@@ -9,7 +9,7 @@ from torchvision import transforms
 import src.data_loader.augmentation
 from src.data_loader.augmentation import (
     DoubleToTensor, DoubleCompose,
-    DoubleHorizontalFlip, DoubleVerticalFlip, DoubleElasticTransform,
+    DoubleHorizontalFlip, DoubleVerticalFlip, DoubleElasticTransform, DoubleAffine,
     GaussianNoise, CustomColorJitter
 )
 
@@ -28,7 +28,8 @@ def get_loader(data_set, is_train, loader_args):
           DoubleToTensor(),
           DoubleElasticTransform(alpha=250, sigma=10),
           DoubleHorizontalFlip(),
-          DoubleVerticalFlip()
+          DoubleVerticalFlip(),
+          DoubleAffine(degrees=(-15, 15), translate=(0.15, 0.15), scale=(0.8, 1))
       ])
       image_transform = transforms.Compose([
           CustomColorJitter(brightness=[0.5, 1.5],

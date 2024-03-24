@@ -1,7 +1,13 @@
 # Most of the code from From https://github.com/hayashimasa/UNet-PyTorch
+import numbers
+import random
+from collections.abc import Sequence
+from typing import List, Optional, Tuple
 
+from torch import Tensor
 import torchvision.transforms.functional as TF
-# from torchvision.transforms import Compose
+from torchvision.transforms.functional import _interpolation_modes_from_int, InterpolationMode
+import torchvision.transforms.transforms as TT
 from torchvision import transforms
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -82,6 +88,41 @@ class DoubleVerticalFlip:
     def __repr__(self):
         return self.__class__.__name__ + f'(p={self.p})'
     
+
+class DoubleAffine(TT.RandomAffine):
+   
+    def forward(self, img, mask):
+        """
+            img (PIL Image or Tensor): Image to be transformed.
+            mask (PIL Image of Tensor): Mask will be given the same transformations
+
+        Returns:
+            PIL Image or Tensor: Affine transformed image.
+        """
+        fill_img = self.fill
+        fill_mask = self.fill
+        channels, height, width = TF.get_dimensions(img)
+        channels_mask = 1; # Mask is hardcoded to 1!
+        if isinstance(img, Tensor):
+            if isinstance(fill_img, (int, float)):
+                fill_img = [float(fill_img)] * channels
+            else:
+                fill_img = [float(f) for f in fill_img]
+
+        if isinstance(mask, Tensor):
+            fill_mask = [float(fill_mask)] * channels_mask
+
+
+        img_size = [width, height]  # flip for keeping BC on get_params call
+
+        ret = self.get_params(self.degrees, self.translate, self.scale, self.shear, img_size)
+        img =  TF.affine(img, *ret, interpolation=self.interpolation, fill=fill_img, center=self.center)
+        mask = TF.affine(mask, *ret, interpolation=self.interpolation, fill=fill_mask, center=self.center)
+
+        return img, mask
+
+
+
 class CustomColorJitter:
     def __init__(self, brightness=0, contrast=0, saturation=0, hue=0):
         self.brightness = brightness
