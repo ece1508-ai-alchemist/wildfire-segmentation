@@ -40,6 +40,9 @@ dependencies = [
     "tqdm",
     "typing; python_version<'3.10'",
     "typing_extensions; python_version<'3.10'",
+    "pydantic",
+    "scikit-learn",
+    "pyyaml",
 
     # load dataset from huggingface
     "datasets",

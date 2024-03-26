@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import List, Tuple, Union, Optional
+from typing import List, Tuple, Union
 
 import numpy as np
-from datasets import load_from_disk
+from datasets import load_dataset, load_from_disk
 from torch.utils.data import Dataset
 
+from data.load_data import POST_FIRE_DIR
 from src.data_loader.augmentation import DoubleToTensor
 
 
@@ -42,10 +43,16 @@ class BaseDataset(Dataset):
 
 
 class WildfireDataset:
-    def __init__(self, path_to_data: Union[str, Path], transforms):
-        self.path_to_data = Path(path_to_data)
+    def __init__(self, path_to_data: Union[str, Path] | None = POST_FIRE_DIR, transforms=None, use_local: bool = True):
         self.transforms = transforms
-        self._datasets = load_from_disk(str(self.path_to_data.absolute()))
+
+        if use_local:
+            print("Load data from local")
+            self.path_to_data = Path(path_to_data)
+            self._datasets = load_from_disk(str(self.path_to_data.absolute()))
+        else:
+            print("Load data from network")
+            self._datasets = load_dataset("DarthReca/california_burned_areas", name="post-fire", trust_remote_code=True)
 
         self.keys: List[Tuple[str, int]] = [
             (k, i) for k in self._datasets.data.keys() for i in range(len(self._datasets[k]))
