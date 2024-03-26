@@ -1,16 +1,10 @@
 # Most of the code from From https://github.com/hayashimasa/UNet-PyTorch
-import numbers
-import random
-from collections.abc import Sequence
-from typing import List, Optional, Tuple
 
 from torch import Tensor
 import torchvision.transforms.functional as TF
-from torchvision.transforms.functional import _interpolation_modes_from_int, InterpolationMode
 import torchvision.transforms.transforms as TT
 from torchvision import transforms
 import torch
-from torch.utils.tensorboard import SummaryWriter
 import random
 import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
@@ -237,4 +231,3 @@ class DoubleCompose(transforms.Compose):
 ###############################################################################
 if __name__ == '__main__':
     print("placeholder")
-    
