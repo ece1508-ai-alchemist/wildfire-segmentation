@@ -1,58 +1,67 @@
-if __name__ == '__main__':
-    import os
-    import sys
+import os
+import sys
 
-    sys.path.append(os.getcwd())
+sys.path.append(os.getcwd())
 
-    import numpy as np
-    import pandas as pd
-    import csv
-    import torch
-    import torch.nn.functional as F
-    from sklearn.metrics import f1_score, jaccard_score
-    from torch import optim
-    from tqdm import tqdm
+import numpy as np
+import pandas as pd
+import csv
+import torch
+import torch.nn.functional as F
+from sklearn.metrics import f1_score, jaccard_score
+from torch import optim
+from tqdm import tqdm
 
-    from data.load_data import POST_FIRE_DIR
-    from src.data_loader.dataloader import get_loader
-    from src.data_loader.dataset import WildfireDataset
-    from src.model.unet import UNet
+from data.load_data import POST_FIRE_DIR
+from src.data_loader.dataloader import get_loader
+from src.data_loader.dataset import WildfireDataset
+from src.model.unet import UNet
 
-    # Function to load states
-    def load_checkpoint(checkpoint_name, model, scaler, optimizer):
-        epoch = None
-        if os.path.exists(checkpoint_name):
-            checkpoint = torch.load(checkpoint_name)
-            model.load_state_dict(checkpoint['model_state_dict'])
-            scaler.load_state_dict(checkpoint['scaler_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            epoch = checkpoint.get('epoch', 0)
-            print("Checkpoint loaded successfully.")
-        else:
-            print(f"Checkpoint '{checkpoint_name}' does not exist.")
+# Function to load states
+def load_checkpoint(checkpoint_name, model, scaler, optimizer):
+    epoch = None
+    if os.path.exists(checkpoint_name):
+        checkpoint = torch.load(checkpoint_name)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        scaler.load_state_dict(checkpoint['scaler_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint.get('epoch', 0)
+        print("Checkpoint loaded successfully.")
+    else:
+        print(f"Checkpoint '{checkpoint_name}' does not exist.")
 
-        return epoch
+    return epoch
 
-    # Function to update CSV file
-    def update_csv(csv_file, epoch, train_loss,  train_iou, train_f1, test_loss, test_iou, test_f1):
-        headers = ["epoch", "train_loss", "train_iou", "train_f1", "test_loss", "test_iou", "test_f1"]
-        if not os.path.exists(csv_file):
-            with open(csv_file, mode='w', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow(headers)
-        with open(csv_file, mode='a', newline='') as file:
+# Function to update CSV file
+def update_csv(csv_file, epoch, train_loss,  train_iou, train_f1, test_loss, test_iou, test_f1):
+    headers = ["epoch", "train_loss", "train_iou", "train_f1", "test_loss", "test_iou", "test_f1"]
+    if not os.path.exists(csv_file):
+        with open(csv_file, mode='w', newline='') as file:
             writer = csv.writer(file)
-            writer.writerow([epoch, train_loss, train_iou, train_f1, test_loss, test_iou, test_f1])
+            writer.writerow(headers)
+    with open(csv_file, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([epoch, train_loss, train_iou, train_f1, test_loss, test_iou, test_f1])
 
+
+if __name__ == '__main__':
+    
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = torch.device("cuda:0")
     print(device)
     dt = WildfireDataset(POST_FIRE_DIR, transforms=None)
 
+    # Training Configs
     # Set the number of epochs
     NUM_EPOCHS = 25
     # Set the batch size number
     BATCH_SIZE = 8
+    # Learning Rate
+    LR = 1e-5
+    # L2 Regularization
+    WEIGHT_DECAY = 0
+
+    # Other configs
     # Directory to save model weights
     SAVE_PATH = "model_weights"
     # File to save metrics
@@ -63,6 +72,8 @@ if __name__ == '__main__':
     LOAD_CHECKPOINT = False
     # Checkpoint file name
     CHECKPOINT_NAME = "unet_epoch_2.chkpt"
+    # Checkpoint Epoch - number of epochs between chkpt
+    CHECKPOINT_EPOCH = 5
 
     # Create directory to save model weights
     if not os.path.exists(SAVE_PATH):
@@ -80,7 +91,7 @@ if __name__ == '__main__':
     model = UNet(n_channels=12, n_classes=1, bilinear=False)
     model.to(device=device)
 
-    optimizer = optim.Adam(model.parameters(), lr=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     criterion = torch.nn.BCEWithLogitsLoss()
     scaler = torch.cuda.amp.GradScaler()
 
@@ -195,7 +206,7 @@ if __name__ == '__main__':
         update_csv(CSV_TEMP_FILE, epoch + 1, avg_train_loss,  avg_train_iou, avg_train_f1, avg_val_loss, avg_val_iou, avg_val_f1)
 
         # Save model weights
-        if (epoch + 1) % 5 == 0:
+        if (epoch + 1) % CHECKPOINT_EPOCH == 0:
             torch.save({
                 'epoch': epoch + 1,
                 'model_state_dict': model.state_dict(),

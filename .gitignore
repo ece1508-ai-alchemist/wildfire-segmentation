@@ -168,3 +168,5 @@ src/.vs/src/FileContentIndex/ad1e2825-526f-4292-a850-a17886b3fd9c.vsidx
 src/.vs/src/v17/.wsuo
 src/.vs/src/v17/DocumentLayout.json
 src/.vs/VSWorkspaceState.json
+*.chkpt
+*.csv
