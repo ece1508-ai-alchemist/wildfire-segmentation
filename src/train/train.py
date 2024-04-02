@@ -46,20 +46,20 @@ def update_csv(csv_file, epoch, train_loss,  train_iou, train_f1, test_loss, tes
 
 if __name__ == '__main__':
     
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cuda:0")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #device = torch.device("cuda:0")
     print(device)
     dt = WildfireDataset(POST_FIRE_DIR, transforms=None)
 
     # Training Configs
     # Set the number of epochs
-    NUM_EPOCHS = 25
+    NUM_EPOCHS = 80
     # Set the batch size number
     BATCH_SIZE = 8
     # Learning Rate
-    LR = 1e-5
+    LR = 3e-5
     # L2 Regularization
-    WEIGHT_DECAY = 0
+    WEIGHT_DECAY = 1e-5
 
     # Other configs
     # Directory to save model weights
@@ -92,6 +92,8 @@ if __name__ == '__main__':
     model.to(device=device)
 
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+    #Added a schedular
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.1)
     criterion = torch.nn.BCEWithLogitsLoss()
     scaler = torch.cuda.amp.GradScaler()
 
@@ -109,13 +111,14 @@ if __name__ == '__main__':
         train_loop = tqdm(train_loader, leave=True)
         for batch in train_loop:
             images, true_masks = batch["image"], batch["mask"]
-
+             # reduce img size 
+            images = torch.nn.functional.interpolate(images, size=(256,256))
+            true_masks = torch.nn.functional.interpolate(true_masks.float(), size=(256,256))
             images = images.to(device)
             true_masks = true_masks.to(device=device, dtype=torch.long)
             # Autocast for mixed precision
-            with torch.cuda.amp.autocast():
-                masks_pred = model(images)
-                loss = criterion(masks_pred, true_masks.float())
+            masks_pred = model(images)
+            loss = criterion(masks_pred, true_masks.float())
             optimizer.zero_grad()
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -153,7 +156,8 @@ if __name__ == '__main__':
         with torch.no_grad():
             for batch in val_loop:
                 images, true_masks = batch["image"], batch["mask"]
-
+                images = torch.nn.functional.interpolate(images, size=(256,256))
+                true_masks = torch.nn.functional.interpolate(true_masks.float(), size=(256,256))
                 images = images.to(device)
                 true_masks = true_masks.to(device)
                 with torch.cuda.amp.autocast():
@@ -182,6 +186,8 @@ if __name__ == '__main__':
                 num_val_samples += images.size(0)
                 val_loop.set_postfix(loss=val_loss / num_val_samples)
 
+        # Step the learning rate scheduler
+        scheduler.step()
         # Calculating average metrics
         avg_train_loss = train_loss / num_samples
         avg_val_loss = val_loss / num_val_samples
