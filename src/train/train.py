@@ -3,11 +3,11 @@ import sys
 
 sys.path.append(os.getcwd())
 
+import csv
+
 import numpy as np
 import pandas as pd
-import csv
 import torch
-import torch.nn.functional as F
 from sklearn.metrics import f1_score, jaccard_score
 from torch import optim
 from tqdm import tqdm
@@ -17,37 +17,38 @@ from src.data_loader.dataloader import get_loader
 from src.data_loader.dataset import WildfireDataset
 from src.model.unet import UNet
 
+
 # Function to load states
 def load_checkpoint(checkpoint_name, model, scaler, optimizer):
     epoch = None
     if os.path.exists(checkpoint_name):
         checkpoint = torch.load(checkpoint_name)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        scaler.load_state_dict(checkpoint['scaler_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        epoch = checkpoint.get('epoch', 0)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        scaler.load_state_dict(checkpoint["scaler_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        epoch = checkpoint.get("epoch", 0)
         print("Checkpoint loaded successfully.")
     else:
         print(f"Checkpoint '{checkpoint_name}' does not exist.")
 
     return epoch
 
+
 # Function to update CSV file
-def update_csv(csv_file, epoch, train_loss,  train_iou, train_f1, test_loss, test_iou, test_f1):
+def update_csv(csv_file, epoch, train_loss, train_iou, train_f1, test_loss, test_iou, test_f1):
     headers = ["epoch", "train_loss", "train_iou", "train_f1", "test_loss", "test_iou", "test_f1"]
     if not os.path.exists(csv_file):
-        with open(csv_file, mode='w', newline='') as file:
+        with open(csv_file, mode="w", newline="") as file:
             writer = csv.writer(file)
             writer.writerow(headers)
-    with open(csv_file, mode='a', newline='') as file:
+    with open(csv_file, mode="a", newline="") as file:
         writer = csv.writer(file)
         writer.writerow([epoch, train_loss, train_iou, train_f1, test_loss, test_iou, test_f1])
 
 
-if __name__ == '__main__':
-    
+if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #device = torch.device("cuda:0")
+    # device = torch.device("cuda:0")
     print(device)
     dt = WildfireDataset(POST_FIRE_DIR, transforms=None)
 
@@ -82,23 +83,21 @@ if __name__ == '__main__':
     # Initialize metrics dataframe
     metrics_df = pd.DataFrame(columns=["epoch", "train_loss", "val_loss", "train_f1", "val_f1", "train_iou", "val_iou"])
 
-
     dict(batch_size=BATCH_SIZE, num_workers=4)
     train_loader = get_loader(dt.train, is_train=True, loader_args=dict(batch_size=BATCH_SIZE, shuffle=True))
     val_loader = get_loader(dt.val, is_train=False, loader_args=dict(batch_size=BATCH_SIZE, shuffle=False))
-
 
     model = UNet(n_channels=12, n_classes=1, bilinear=False)
     model.to(device=device)
 
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
-    #Added a schedular
+    # Added a schedular
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.1)
     criterion = torch.nn.BCEWithLogitsLoss()
     scaler = torch.cuda.amp.GradScaler()
 
     CUR_EPOCH = 0
-    # Load checkpoint 
+    # Load checkpoint
     if LOAD_CHECKPOINT:
         CUR_EPOCH = load_checkpoint(os.path.join(SAVE_PATH, CHECKPOINT_NAME), model, scaler, optimizer)
 
@@ -111,14 +110,15 @@ if __name__ == '__main__':
         train_loop = tqdm(train_loader, leave=True)
         for batch in train_loop:
             images, true_masks = batch["image"], batch["mask"]
-             # reduce img size 
-            images = torch.nn.functional.interpolate(images, size=(256,256))
-            true_masks = torch.nn.functional.interpolate(true_masks.float(), size=(256,256))
+
             images = images.to(device)
             true_masks = true_masks.to(device=device, dtype=torch.long)
+
             # Autocast for mixed precision
-            masks_pred = model(images)
-            loss = criterion(masks_pred, true_masks.float())
+            with torch.cuda.amp.autocast():
+                masks_pred = model(images)
+                loss = criterion(masks_pred, true_masks.float())
+
             optimizer.zero_grad()
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -156,8 +156,7 @@ if __name__ == '__main__':
         with torch.no_grad():
             for batch in val_loop:
                 images, true_masks = batch["image"], batch["mask"]
-                images = torch.nn.functional.interpolate(images, size=(256,256))
-                true_masks = torch.nn.functional.interpolate(true_masks.float(), size=(256,256))
+
                 images = images.to(device)
                 true_masks = true_masks.to(device)
                 with torch.cuda.amp.autocast():
@@ -197,28 +196,35 @@ if __name__ == '__main__':
         avg_val_iou = val_iou / len(val_loader)
 
         # Saving metrics to dataframe
-        new_row = pd.DataFrame([
-            {
-                "epoch": epoch + 1,
-                "train_loss": avg_train_loss,
-                "val_loss": avg_val_loss,
-                "train_f1": avg_train_f1,
-                "val_f1": avg_val_f1,
-                "train_iou": avg_train_iou,
-                "val_iou": avg_val_iou,
-            },
-        ])
+        new_row = pd.DataFrame(
+            [
+                {
+                    "epoch": epoch + 1,
+                    "train_loss": avg_train_loss,
+                    "val_loss": avg_val_loss,
+                    "train_f1": avg_train_f1,
+                    "val_f1": avg_val_f1,
+                    "train_iou": avg_train_iou,
+                    "val_iou": avg_val_iou,
+                },
+            ]
+        )
         metrics_df = pd.concat([metrics_df, new_row], ignore_index=True)
-        update_csv(CSV_TEMP_FILE, epoch + 1, avg_train_loss,  avg_train_iou, avg_train_f1, avg_val_loss, avg_val_iou, avg_val_f1)
+        update_csv(
+            CSV_TEMP_FILE, epoch + 1, avg_train_loss, avg_train_iou, avg_train_f1, avg_val_loss, avg_val_iou, avg_val_f1
+        )
 
         # Save model weights
         if (epoch + 1) % CHECKPOINT_EPOCH == 0:
-            torch.save({
-                'epoch': epoch + 1,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                "scaler_state_dict": scaler.state_dict()
-                },  os.path.join(SAVE_PATH, f"unet_epoch_{epoch + 1}.chkpt"))
+            torch.save(
+                {
+                    "epoch": epoch + 1,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "scaler_state_dict": scaler.state_dict(),
+                },
+                os.path.join(SAVE_PATH, f"unet_epoch_{epoch + 1}.chkpt"),
+            )
 
     # Saving metrics to CSV file
     metrics_df.to_csv(CSV_FILE, index=False)

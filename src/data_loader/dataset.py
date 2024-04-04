@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Tuple, Union, Optional
+from typing import List, Tuple, Union
 
 import numpy as np
 from datasets import load_from_disk

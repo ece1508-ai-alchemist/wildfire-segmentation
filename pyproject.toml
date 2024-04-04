@@ -16,7 +16,9 @@ packages = ["src"]
 name = "wildfire-segmentation"
 dynamic = ["version"]
 authors = [
-  { name="Yan Zhang", email="dev.claude.yan.zhang@gmail.com" },
+    {name="Forrest Zhang", email="forrest.zhang@mail.utoronto.ca"},
+    {name="Jiaxuan Zhao", email="yoyoeric.zhao@mail.utoronto.caa"},
+    { name="Yan Zhang", email="claudeyan.zhang@mail.utoronto.ca" },
 ]
 description = "wildfire segmentation"
 readme = "README.md"
@@ -40,6 +42,7 @@ dependencies = [
     "tqdm",
     "typing; python_version<'3.10'",
     "typing_extensions; python_version<'3.10'",
+    "scikit-learn",
 
     # load dataset from huggingface
     "datasets",
