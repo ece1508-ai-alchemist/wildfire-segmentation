@@ -22,7 +22,12 @@ from src.model.unet import UNet
 def load_checkpoint(checkpoint_name, model, scaler, optimizer):
     epoch = None
     if os.path.exists(checkpoint_name):
-        checkpoint = torch.load(checkpoint_name)
+
+        if torch.cuda.is_available():
+            checkpoint = torch.load(checkpoint_name)
+        else:
+            checkpoint = torch.load(checkpoint_name, map_location=torch.device('cpu'))
+
         model.load_state_dict(checkpoint["model_state_dict"])
         scaler.load_state_dict(checkpoint["scaler_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
