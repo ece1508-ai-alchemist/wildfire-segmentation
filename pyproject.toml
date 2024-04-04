@@ -17,7 +17,7 @@ name = "wildfire-segmentation"
 dynamic = ["version"]
 authors = [
     {name="Forrest Zhang", email="forrest.zhang@mail.utoronto.ca"},
-    {name="Jiaxuan Zhao", email="yoyoeric.zhao@mail.utoronto.caa"},
+    {name="Jiaxuan Zhao", email="yoyoeric.zhao@mail.utoronto.ca"},
     { name="Yan Zhang", email="claudeyan.zhang@mail.utoronto.ca" },
 ]
 description = "wildfire segmentation"

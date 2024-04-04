@@ -27,7 +27,7 @@ python src/train/train.py
 
 ## Step 4: Visualization
 
-You can change the default configurations and parameters in `src/train/train.py`
+You need install and enable [git lfs](https://git-lfs.com/) to download pre-trained model
 
 ```bash
 python visualize_sample.py
