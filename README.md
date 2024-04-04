@@ -1,5 +1,7 @@
 # wildfire-segmentation
 
+Here is [Sample Jupyter Notebook](train.ipynb)
+
 ## Step 1: Install Dependencies
 
 > Notes: Make sure you installed correct pytorch version that match your CUDA driver version
@@ -30,3 +32,4 @@ You can change the default configurations and parameters in `src/train/train.py`
 ```bash
 python visualize_sample.py
 ```
+
