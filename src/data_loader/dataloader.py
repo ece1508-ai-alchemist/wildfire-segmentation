@@ -13,11 +13,7 @@ from src.data_loader.augmentation import (
     GaussianNoise,
 )
 
-
-# Helper function to set up data transforms and get the data loader
-def get_loader(data_set, is_train, loader_args):
-    # NOTE: This is for pre-post-fire dataset! Hard mean and std for now
-    mean = [
+mean = [
         x / 10000
         for x in [
             529.8350,
@@ -35,7 +31,7 @@ def get_loader(data_set, is_train, loader_args):
         ]
     ]
 
-    std = [
+std = [
         x / 10000
         for x in [
             662.8983,
@@ -52,6 +48,16 @@ def get_loader(data_set, is_train, loader_args):
             961.8238,
         ]
     ]
+
+NormalizationTF = transforms.Normalize(mean, std)
+
+IMAGE_MASK_TRANSFORM = DoubleCompose([DoubleToTensor()])
+IMAGE_TRANSFORM = transforms.Compose([NormalizationTF])
+
+
+# Helper function to set up data transforms and get the data loader
+def get_loader(data_set, is_train, loader_args):
+    # NOTE: This is for pre-post-fire dataset! Hard mean and std for now
 
     if is_train:
         image_mask_transform = DoubleCompose(
@@ -71,8 +77,8 @@ def get_loader(data_set, is_train, loader_args):
             ]
         )
     else:
-        image_mask_transform = DoubleCompose([DoubleToTensor()])
-        image_transform = transforms.Compose([transforms.Normalize(mean, std)])
+        image_mask_transform = IMAGE_MASK_TRANSFORM
+        image_transform = IMAGE_TRANSFORM
 
     data_set.__set_transforms__(image_mask_transform, image_transform)
 
