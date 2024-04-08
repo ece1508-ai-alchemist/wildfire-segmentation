@@ -1,10 +1,11 @@
 import torch
+from huggingface_hub import PyTorchModelHubMixin
 from torch import nn
 
 from .parts import DoubleConv, Down, OutConv, Up
 
 
-class UNet(nn.Module):
+class UNet(nn.Module, PyTorchModelHubMixin):
     def __init__(
         self,
         n_channels,

@@ -13,12 +13,9 @@ from data.load_data import POST_FIRE_DIR, PRE_POST_FIRE_DIR
 from src.data_loader.dataloader import get_loader
 from src.data_loader.dataset import WildfireDataset
 from src.model.unet import UNet
-
 from src.train.train import load_checkpoint
 
-
 if __name__ == "__main__":
-    
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = torch.device("cuda:0")
     print(device)
@@ -29,12 +26,10 @@ if __name__ == "__main__":
 
     # Checkpoint file name
     CHECKPOINT_NAME = "pre_trained.chkpt"
-   
 
     # Create directory to save model weights
     if not os.path.exists(SAVE_PATH):
         os.makedirs(SAVE_PATH)
-
 
     dict(batch_size=8, num_workers=4)
     test_loader = get_loader(dt.test, is_train=False, loader_args=dict(batch_size=8, shuffle=False))
@@ -46,7 +41,7 @@ if __name__ == "__main__":
     criterion = torch.nn.BCEWithLogitsLoss()
     scaler = torch.cuda.amp.GradScaler()
 
-    # Load checkpoint 
+    # Load checkpoint
     CUR_EPOCH = load_checkpoint(os.path.join(SAVE_PATH, CHECKPOINT_NAME), model, scaler, optimizer)
 
     # Define a threshold for F1 score
@@ -91,7 +86,5 @@ if __name__ == "__main__":
         avg_test_loss = test_loss / num_test_samples
         avg_test_f1 = test_f1 / len(test_loader)
         avg_test_iou = test_iou / len(test_loader)
-
-        
 
         print("Test loss ", avg_test_loss, "Test f1 ", avg_test_f1, "Test IOU ", avg_test_iou)
