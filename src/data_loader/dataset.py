@@ -1,11 +1,12 @@
+import os
 from pathlib import Path
-from typing import List, Tuple, Union
-
+from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
+from torch.utils.data import Dataset, DataLoader
 from datasets import load_from_disk
-from torch.utils.data import Dataset
-
-from src.data_loader.augmentation import DoubleToTensor
+from src.data_loader.augmentation import DoubleToTensor, DoubleCompose, DoubleElasticTransform, DoubleHorizontalFlip, DoubleVerticalFlip, DoubleAffine, CustomColorJitter, GaussianNoise
+import torch
+import h5py
 
 
 class BaseDataset(Dataset):
@@ -13,9 +14,12 @@ class BaseDataset(Dataset):
     pre_fire_key = "pre_fire"
     post_fire_key = "post_fire"
 
-    def __init__(self, datasets, keys):
+    def __init__(self, datasets, keys, include_pre_fire=False):
         self._datasets = datasets
         self.keys = keys
+        self.include_pre_fire = include_pre_fire
+        self.image_mask_transform = None
+        self.image_transform = None
 
     def __len__(self):
         return len(self.keys)
@@ -27,24 +31,41 @@ class BaseDataset(Dataset):
     def __getitem__(self, idx):
         key, img_index = self.keys[idx]
         data = self._datasets[key][img_index]
-        img = np.array(data[self.post_fire_key]) / 10000
+        post_fire_img = np.array(data[self.post_fire_key]) / 10000
         mask = np.array(data[self.mask_key])
 
-        if self.image_mask_transform:
-            img, mask = self.image_mask_transform(img, mask)
-        if self.image_transform:
-            img = self.image_transform(img)
+        if self.include_pre_fire:
+            pre_fire_img = np.array(data[self.pre_fire_key]) / 10000
+        else:
+            pre_fire_img = None
 
-        return {
-            "image": img,
+        if self.image_mask_transform:
+            post_fire_img, mask = self.image_mask_transform(post_fire_img, mask)
+            if self.include_pre_fire:
+                pre_fire_img, _ = self.image_mask_transform(pre_fire_img, mask)
+
+        if self.image_transform:
+            post_fire_img = self.image_transform(post_fire_img)
+            if self.include_pre_fire:
+                pre_fire_img = self.image_transform(pre_fire_img)
+
+        result = {
+            "post_fire_image": post_fire_img,
             "mask": mask,
         }
+        if self.include_pre_fire:
+            result["pre_fire_image"] = pre_fire_img
+
+        return result
+
+
 
 
 class WildfireDataset:
-    def __init__(self, path_to_data: Union[str, Path], transforms):
+    def __init__(self, path_to_data: Union[str, Path], transforms, include_pre_fire=False):
         self.path_to_data = Path(path_to_data)
         self.transforms = transforms
+        self.include_pre_fire = include_pre_fire
         self._datasets = load_from_disk(str(self.path_to_data.absolute()))
 
         self.keys: List[Tuple[str, int]] = [
@@ -68,6 +89,86 @@ class WildfireDataset:
         self.image_mask_transform = DoubleToTensor()
         self.image_transform = None
 
-        self.train = BaseDataset(self._datasets, [self.keys[i] for i in self.train_idxs])
-        self.val = BaseDataset(self._datasets, [self.keys[i] for i in self.val_idxs])
-        self.test = BaseDataset(self._datasets, [self.keys[i] for i in self.test_idxs])
+        self.train_pre_fire = BaseDataset(self._datasets, [self.keys[i] for i in self.train_idxs], include_pre_fire=True)
+        self.train_post_fire = BaseDataset(self._datasets, [self.keys[i] for i in self.train_idxs], include_pre_fire=False)
+        self.val_pre_fire = BaseDataset(self._datasets, [self.keys[i] for i in self.val_idxs], include_pre_fire=True)
+        self.val_post_fire = BaseDataset(self._datasets, [self.keys[i] for i in self.val_idxs], include_pre_fire=False)
+        self.test_pre_fire = BaseDataset(self._datasets, [self.keys[i] for i in self.test_idxs], include_pre_fire=True)
+        self.test_post_fire = BaseDataset(self._datasets, [self.keys[i] for i in self.test_idxs], include_pre_fire=False)
+
+    def extract_features(self, autoencoder, dataloader, device, is_pre_fire=False):
+        autoencoder.eval()
+        features = []
+        with torch.no_grad():
+            for data in dataloader:
+                images = data['pre_fire_image' if is_pre_fire else 'post_fire_image'].to(device)
+                # Ensure the images are in the correct shape [batch_size, channels, height, width]
+                if images.ndim == 4 and images.shape[1] == 512:
+                    images = images.permute(0, 3, 1, 2)
+                latent, _ = autoencoder(images)
+                features.append(latent.cpu())
+        return torch.cat(features, dim=0)
+
+    def get_feature_diff_dataloader(self, autoencoder, batch_size, device):
+        pre_fire_loader = DataLoader(self.train_pre_fire, batch_size=batch_size, shuffle=False, num_workers=4)
+        post_fire_loader = DataLoader(self.train_post_fire, batch_size=batch_size, shuffle=False, num_workers=4)
+
+        pre_fire_features = self.extract_features(autoencoder, pre_fire_loader, device, is_pre_fire=True)
+        post_fire_features = self.extract_features(autoencoder, post_fire_loader, device)
+
+        # masks = []
+        # for data in post_fire_loader:
+        #     masks.append(data['mask'])
+        # masks = torch.cat(masks, dim=0)
+
+        masks = []
+        for data in post_fire_loader:
+            mask = data['mask'].unsqueeze(1)  # Ensure masks have a single channel
+            masks.append(mask)
+        masks = torch.cat(masks, dim=0).squeeze(1)  # Ensure the masks have the correct shape [batch_size, H, W]
+        print(f"Pre-fire feature size: {pre_fire_features.size()}, Post-fire feature size: {post_fire_features.size()}, Mask size: {masks.size()}")
+        feature_diff_dataset = FeatureDiffDataset(pre_fire_features, post_fire_features, masks)
+        return DataLoader(feature_diff_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+
+
+class CombinedDataset(Dataset):
+    def __init__(self, dataset, transforms=None):
+        self.train_pre_fire = dataset.train_pre_fire
+        self.train_post_fire = dataset.train_post_fire
+        self.keys = self.train_post_fire.keys  # Use the keys from one of the datasets (assuming they are the same)
+        self.transforms = transforms
+
+    def __len__(self):
+        return len(self.keys)
+
+    def __getitem__(self, idx):
+        key, img_index = self.keys[idx]
+        data_pre = self.train_pre_fire._datasets[key][img_index]
+        data_post = self.train_post_fire._datasets[key][img_index]
+        
+        pre_fire_img = np.array(data_pre[self.train_pre_fire.pre_fire_key]) / 10000
+        post_fire_img =np.array(data_post[self.train_post_fire.post_fire_key]) / 10000
+
+        if self.transforms:
+            pre_fire_img, _ = self.transforms(pre_fire_img, pre_fire_img)
+            post_fire_img, _ = self.transforms(post_fire_img, post_fire_img)
+
+        return post_fire_img, pre_fire_img
+
+
+
+class FeatureDiffDataset(Dataset):
+    def __init__(self, pre_fire_features, post_fire_features, masks):
+        self.pre_fire_features = pre_fire_features
+        self.post_fire_features = post_fire_features
+        self.masks = masks
+
+    def __len__(self):
+        return len(self.masks)
+
+    def __getitem__(self, idx):
+        pre_feature = self.pre_fire_features[idx]
+        post_feature = self.post_fire_features[idx]
+        mask = self.masks[idx]
+        feature_diff = post_feature - pre_feature
+        return {'feature_diff': feature_diff, 'mask': mask}
