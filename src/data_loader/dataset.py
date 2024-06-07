@@ -147,13 +147,13 @@ class CombinedDataset(Dataset):
         data_post = self.train_post_fire._datasets[key][img_index]
         
         pre_fire_img = np.array(data_pre[self.train_pre_fire.pre_fire_key]) / 10000
-        post_fire_img =np.array(data_post[self.train_post_fire.post_fire_key]) / 10000
-
+        post_fire_img = np.array(data_post[self.train_post_fire.post_fire_key]) / 10000
+        mask = np.array(data_post[self.train_post_fire.mask_key])
         if self.transforms:
-            pre_fire_img, _ = self.transforms(pre_fire_img, pre_fire_img)
-            post_fire_img, _ = self.transforms(post_fire_img, post_fire_img)
+            pre_fire_img, mask = self.transforms(pre_fire_img, mask)
+            post_fire_img, mask = self.transforms(post_fire_img, mask)
 
-        return post_fire_img, pre_fire_img
+        return post_fire_img, pre_fire_img, mask
 
 
 
