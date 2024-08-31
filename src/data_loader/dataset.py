@@ -154,6 +154,8 @@ class CombinedDataset(Dataset):
         #     post_fire_img, mask = self.transforms(post_fire_img, mask)
 
         # return post_fire_img, pre_fire_img, mask
+        if self.transforms:
+            pre_fire_img, post_fire_img, mask = self.transforms(pre_fire_img, post_fire_img, mask)
         return {
             "pre_fire_image": pre_fire_img,
             "post_fire_image": post_fire_img,
